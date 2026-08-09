@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WorkflowDesigner 実ライブラリサンプル</title>
+  <link rel="stylesheet" href="./sample.css">
+  <link rel="stylesheet" href="../src/workflow_designer.css">
+</head>
+<body>
+  <header class="sample-header">
+    <div>
+      <p class="sample-kicker">WorkflowDesigner</p>
+      <h1>実ライブラリ動作サンプル</h1>
+    </div>
+    <div class="sample-help">
+      左ドラッグ：移動／Pan　右ドラッグ：接続／範囲選択　Esc：選択解除
+    </div>
+  </header>
+
+  <main class="sample-layout">
+    <section class="designer-card" aria-label="ワークフローデザイナーサンプル">
+      <div id="workflow-root"></div>
+    </section>
+
+    <aside class="sample-sidebar">
+      <section class="side-card">
+        <h2>ステータス</h2>
+        <div class="status-legend">
+          <span data-legend="waiting">Waiting</span>
+          <span data-legend="running">Running</span>
+          <span data-legend="success">Success</span>
+          <span data-legend="error">Error</span>
+          <span data-legend="skipped">Skipped</span>
+        </div>
+      </section>
+
+      <section class="side-card side-card--grow">
+        <div class="side-card__title-row">
+          <h2>イベントログ</h2>
+          <button id="clear-log" type="button">消去</button>
+        </div>
+        <pre id="event-log" aria-live="polite"></pre>
+      </section>
+    </aside>
+  </main>
+
+  <script src="../src/designer_types.js"></script>
+  <script src="../src/designer_grid.js"></script>
+  <script src="../src/designer_events.js"></script>
+  <script src="../src/designer_document.js"></script>
+  <script src="../src/designer_ids.js"></script>
+  <script src="../src/designer_graph.js"></script>
+  <script src="../src/designer_fragments.js"></script>
+  <script src="../src/designer_clone.js"></script>
+  <script src="../src/designer_selection.js"></script>
+  <script src="../src/designer_dom.js"></script>
+  <script src="../src/designer_note_dom.js"></script>
+  <script src="../src/designer_feedback.js"></script>
+  <script src="../src/designer_render.js"></script>
+  <script src="../src/designer_note_edit.js"></script>
+  <script src="../src/designer_commands.js"></script>
+  <script src="../src/designer_interaction.js"></script>
+  <script src="../src/designer_core_api.js"></script>
+  <script src="../src/workflow_designer.js"></script>
+  <script src="./sample_app.js"></script>
+</body>
+</html>
