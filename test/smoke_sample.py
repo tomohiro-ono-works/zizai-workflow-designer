@@ -1,5 +1,7 @@
 from base64 import b64encode
 from pathlib import Path
+
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,6 +13,13 @@ def inline_sample() -> str:
     html = (SAMPLE / "index.html").read_text(encoding="utf-8")
     sample_css = (SAMPLE / "sample.css").read_text(encoding="utf-8")
     library_css = (SRC / "workflow_designer.css").read_text(encoding="utf-8")
+    library_js = (SRC / "workflow_designer.js").read_text(encoding="utf-8")
+    app_js = (SAMPLE / "sample_app.js").read_text(encoding="utf-8")
+    for icon in ["database.svg", "cloud.svg"]:
+        encoded = b64encode((SAMPLE / "icons" / icon).read_bytes()).decode("ascii")
+        app_js = app_js.replace(
+            f"./icons/{icon}", f"data:image/svg+xml;base64,{encoded}"
+        )
     html = html.replace(
         '<link rel="stylesheet" href="./sample.css">',
         f"<style>\n{sample_css}\n</style>",
@@ -19,48 +28,19 @@ def inline_sample() -> str:
         '<link rel="stylesheet" href="../src/workflow_designer.css">',
         f"<style>\n{library_css}\n</style>",
     )
-
-    scripts = [
-        "designer_types.js",
-        "designer_grid.js",
-        "designer_events.js",
-        "designer_document.js",
-        "designer_ids.js",
-        "designer_graph.js",
-        "designer_fragments.js",
-        "designer_clone.js",
-        "designer_selection.js",
-        "designer_dom.js",
-        "designer_note_dom.js",
-        "designer_feedback.js",
-        "designer_render.js",
-        "designer_note_edit.js",
-        "designer_commands.js",
-        "designer_interaction.js",
-        "designer_core_api.js",
-        "workflow_designer.js",
-    ]
-    for name in scripts:
-        javascript = (SRC / name).read_text(encoding="utf-8")
-        html = html.replace(
-            f'<script src="../src/{name}"></script>',
-            f"<script>\n{javascript}\n</script>",
-        )
-
-    javascript = (SAMPLE / "sample_app.js").read_text(encoding="utf-8")
-    for icon in ["database.svg", "cloud.svg"]:
-        encoded = b64encode((SAMPLE / "icons" / icon).read_bytes()).decode("ascii")
-        javascript = javascript.replace(
-            f"./icons/{icon}", f"data:image/svg+xml;base64,{encoded}"
-        )
+    html = html.replace(
+        '<script src="../src/workflow_designer.js"></script>',
+        f"<script>\n{library_js}\n</script>",
+    )
     html = html.replace(
         '<script src="./sample_app.js"></script>',
-        f"<script>\n{javascript}\n</script>",
+        f"<script>\n{app_js}\n</script>",
     )
     return html
 
 
 errors: list[str] = []
+file_navigation_blocked = False
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(
         headless=True,
@@ -75,7 +55,22 @@ with sync_playwright() as playwright:
         else None,
     )
     page.on("pageerror", lambda error: errors.append(f"pageerror: {error}"))
-    page.set_content(inline_sample(), wait_until="load", timeout=30_000)
+    try:
+        page.goto((SAMPLE / "index.html").as_uri(), wait_until="load", timeout=30_000)
+    except PlaywrightError as error:
+        if "ERR_BLOCKED_BY_ADMINISTRATOR" not in str(error):
+            raise
+        file_navigation_blocked = True
+        page.close()
+        page = browser.new_page(viewport={"width": 1440, "height": 900})
+        page.on(
+            "console",
+            lambda message: errors.append(f"console {message.type}: {message.text}")
+            if message.type == "error"
+            else None,
+        )
+        page.on("pageerror", lambda error: errors.append(f"pageerror: {error}"))
+        page.set_content(inline_sample(), wait_until="load", timeout=30_000)
     page.wait_for_selector("[data-workflow-designer]", timeout=10_000)
 
     assert page.locator(".zwd-node").count() == 9
@@ -91,7 +86,8 @@ with sync_playwright() as playwright:
     assert page.locator('.zwd-node__visual').count() == 9
     assert page.locator('.zwd-node__description:not([hidden])').count() == 7
     loop_node = page.locator('[data-node-id="05"]')
-    assert loop_node.locator('[data-zwd-port-role="in"]').count() == 1
+    assert loop_node.locator('[data-zwd-port-role="enter"]').count() == 1
+    assert loop_node.locator('[data-zwd-port-role="return"]').count() == 1
     assert loop_node.locator('[data-zwd-port-role="done"]').count() == 1
     assert loop_node.locator('[data-zwd-port-role="loop"]').count() == 1
     assert loop_node.locator('.zwd-node__port-label').all_text_contents() == ["done", "loop"]
@@ -281,4 +277,7 @@ with sync_playwright() as playwright:
     assert not errors, errors
     browser.close()
 
-print("sample browser smoke test passed")
+if file_navigation_blocked:
+    print("sample runtime smoke test passed; file:// navigation was blocked by Chromium administrator policy")
+else:
+    print("sample file:// browser smoke test passed")

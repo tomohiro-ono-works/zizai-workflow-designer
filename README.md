@@ -1,122 +1,371 @@
 # WorkflowDesigner
 
-ブラウザ標準のHTML、CSS、JavaScriptだけで利用できる、フレームワーク非依存のワークフローデザイナーです。Node.js、npm、バンドル、トランスパイルは利用時には不要です。
+ブラウザ標準のHTML、CSS、JavaScriptだけで利用できる、フレームワーク非依存のワークフローデザイナーです。
+
+利用時にNode.js、npm、パッケージマネージャー、バンドル、トランスパイル、HTTPサーバーは必須ではありません。公開CSSと公開JavaScriptをHTMLから読み込むだけで使用でき、ローカルHTMLを`file://`で直接開く構成にも対応します。
+
+## ライブラリの責務
+
+WorkflowDesignerが担当するのは、ワークフロー編集UIと、その編集結果をDocument Patchとして通知するところまでです。
+
+WorkflowDesigner側の責務:
+
+- ノード、START、END、LOOP、エッジ、付箋の描画
+- 選択、複数選択、移動、範囲選択
+- パン、ズーム
+- ノードの22pxグリッドスナップ
+- 接続先の24pxスナップ
+- 接続プレビューと直交エッジ描画
+- DAGモードでの循環接続拒否
+- 通常フローとLOOP内部グラフの接続制約
+- 複製、コピー、貼り付け
+- 標準ID発番
+- 編集内容に対するDocument Patch生成
+- readonly、status、validation、カスタムノード描画の反映
+
+利用アプリ側の責務:
+
+- `document`を正本として保持する
+- `document:change`で受け取ったPatchを正本へ反映する
+- ノード追加要求を実データへ反映する
+- 接続作成要求を実データへ反映する
+- 削除要求を実データへ反映する
+- Undo / Redo履歴を保持する
+- 保存、読込、backend通信
+- 実際のワークフロー実行
+- 業務固有のvalidation、確認ダイアログなど
 
 ## フォルダ構成
 
 ```text
-├─ src/       ライブラリ本体
-├─ sample/    動作サンプル
-├─ test/      ユニットテスト、静的検証、ブラウザ検証
+workflow-designer/
+├─ src/
+│  ├─ workflow_designer.js      公開JavaScript。利用時に読み込む自己完結ファイル
+│  ├─ workflow_designer.css     公開CSS。利用時に読み込むライブラリCSS
+│  └─ designer_*.js             内部実装を責務別に分割した保守用ソース
+│
+├─ sample/
+│  ├─ minimal.html              基本編集機能を確認する最小HTML
+│  ├─ minimal.css               最小サンプルの表示領域だけを定義
+│  ├─ minimal.js                基本編集に必要な利用アプリ側処理一式
+│  ├─ index.html                全機能確認用サンプル
+│  ├─ sample.css                全機能サンプル画面専用CSS
+│  ├─ sample_app.js             デモ演出を含む全機能サンプル処理
+│  └─ icons/                    全機能サンプル専用アイコン
+│
+├─ test/
+│  ├─ test_*.js                 JavaScriptユニットテスト
+│  ├─ verify_sample.py          構成・依存関係の静的検証
+│  └─ smoke_*.py                ブラウザ動作検証
+│
 └─ README.md
 ```
 
-## 主な機能
+### 利用時に必要なファイル
 
-- 画像・SVGアイコンを中心にした縦型ノード、START、END、エッジ、loopノード、付箋の描画
-- 単一・複数ノードの選択と移動
-- 水平・垂直主体の8px角丸直交エッジと、ドラッグ中の関連エッジ追従
-- パン、ズーム、範囲選択
-- 出力接続点の左ドラッグ、または従来の右ドラッグによる接続
-- 入力側基準点から画面上24px以内の接続先スナップ
-- ノードはドラッグ中から22pxグリッド単位で移動し、ドロップ位置も同じ座標で確定
-- DAGモードでの循環接続拒否
-- 通常フローとloop内部グラフの分離
-- Document Patchによるcontrolled input
-- 標準ID発番、複製、コピー、貼り付け
-- 未実行時のidle表示と、実行状態・validationのoverlay表示
-- コンテキストメニュー、Undo／Redo連携用イベント
+利用側が読み込むライブラリファイルは次の2つだけです。
 
-## 利用方法
+```text
+src/workflow_designer.css
+src/workflow_designer.js
+```
 
-`src/`内のCSSとJavaScriptを、次の順序でHTMLから読み込みます。
+`src/designer_*.js`は内部実装用です。利用側で個別に読み込んだり、読み込み順を管理したりする必要はありません。
+
+また、`sample/sample.css`は読み込みません。これは全機能サンプル画面のレイアウトと装飾だけを担当します。
+
+## 最小の読み込み方法
 
 ```html
 <link rel="stylesheet" href="./src/workflow_designer.css">
 
-<script src="./src/designer_types.js"></script>
-<script src="./src/designer_grid.js"></script>
-<script src="./src/designer_events.js"></script>
-<script src="./src/designer_document.js"></script>
-<script src="./src/designer_ids.js"></script>
-<script src="./src/designer_graph.js"></script>
-<script src="./src/designer_fragments.js"></script>
-<script src="./src/designer_clone.js"></script>
-<script src="./src/designer_selection.js"></script>
-<script src="./src/designer_dom.js"></script>
-<script src="./src/designer_note_dom.js"></script>
-<script src="./src/designer_feedback.js"></script>
-<script src="./src/designer_render.js"></script>
-<script src="./src/designer_note_edit.js"></script>
-<script src="./src/designer_commands.js"></script>
-<script src="./src/designer_interaction.js"></script>
-<script src="./src/designer_core_api.js"></script>
-<script src="./src/workflow_designer.js"></script>
-```
-
-読み込み後、`window.zizPackages.workflowDesigner`から公開APIを取得します。
-
-```html
 <div id="workflow-root"></div>
 
-<script>
-  const { createWorkflowDesigner, applyDocumentPatch } =
-    window.zizPackages.workflowDesigner;
-
-  let documentState = {
-    steps: [{
-      step_id: "01",
-      flow_id: "01",
-      node_type: "source",
-      label: "受注DBを読込",
-      description: "受注データを取得",
-      ui_position: { x: 220, y: 176 }
-    }],
-    flows: {},
-    loop: { flows: {} },
-    notes: []
-  };
-
-  const designer = createWorkflowDesigner({
-    root: document.getElementById("workflow-root"),
-    document: documentState,
-    graphMode: "dag",
-    nodeGrid: { enabled: true, size: 22 },
-    connectionSnapDistance: 24
-  });
-
-  designer.on("document:change", ({ patch }) => {
-    documentState = applyDocumentPatch(documentState, patch);
-    designer.updateDocument(patch);
-  });
-
-  designer.mount();
-</script>
+<script src="./src/workflow_designer.js"></script>
+<script src="./app.js"></script>
 ```
 
-`document`は利用アプリ側が正本として保持します。WorkflowDesignerは編集結果を`document:change`イベントのDocument Patchとして通知します。
+公開APIは次から取得します。
 
-## サンプル
-
-`sample/index.html`をChromeまたはEdgeで開きます。ローカルファイル制限がある場合は、リポジトリのルートで次を実行します。
-
-```bash
-python -m http.server 8000
+```js
+const {
+  createWorkflowDesigner,
+  applyDocumentPatch
+} = window.zizPackages.workflowDesigner;
 ```
 
-その後、次を開きます。
+## 表示領域の要件
+
+WorkflowDesignerは、配置先root要素に与えられた領域いっぱいに描画します。ライブラリ側では固定の高さを決めません。
+
+そのため、呼び出し側の責務として、配置先要素には、表示可能な高さを明示的に確保してください。
+
+```css
+#workflow-root {
+  width: 100%;
+  height: 720px;
+}
+```
+
+`height: 100%`を使用する場合は、親要素にも確定した高さが必要です。
+
+```css
+.workflow-area {
+  height: 720px;
+}
+
+#workflow-root {
+  width: 100%;
+  height: 100%;
+}
+```
+
+WorkflowDesignerを表示するために`.sample-layout`や`sample.css`が必要なわけではありません。サンプル側のサイズ指定は、サンプル画面内で表示領域を確保するためだけのものです。
+
+## 基本的な初期化
+
+```js
+const { createWorkflowDesigner, applyDocumentPatch } =
+  window.zizPackages.workflowDesigner;
+
+let documentState = {
+  steps: [],
+  flows: {},
+  loop: { flows: {} },
+  notes: []
+};
+
+const designer = createWorkflowDesigner({
+  root: document.getElementById("workflow-root"),
+  document: documentState,
+  graphMode: "dag",
+  nodeGrid: { enabled: true, size: 22 },
+  connectionSnapDistance: 24
+});
+
+designer.on("document:change", ({ patch }) => {
+  documentState = applyDocumentPatch(documentState, patch);
+  designer.updateDocument(patch);
+});
+
+designer.mount();
+```
+
+このコードだけでも既存Documentの描画、選択、移動、付箋編集など、WorkflowDesigner自身がPatchを生成する操作は反映できます。
+
+ただし、**ノード追加、接続作成、削除、Undo / Redoまで含む編集アプリとして使用する場合は、追加の要求イベント処理が必要です。** 完全な最小実装は`sample/minimal.js`を参照してください。
+
+## 最小構成サンプル
+
+`sample/minimal.html`は、デモ演出を除き、WorkflowDesignerを通常の編集UIとして使うために必要な利用アプリ側処理をまとめたサンプルです。
 
 ```text
-http://localhost:8000/sample/
+sample/minimal.html
+sample/minimal.css
+sample/minimal.js
 ```
 
-サンプルは全ノードが未実行の`idle`状態で開きます。ノードはドラッグ中から22pxグリッド上を段階的に移動し、接続エッジもそのスナップ済み座標へ追従します。実行ボタンを押すと、DAG検証、loopノード、接続先スナップ、実行状態表示、Undo／Redoを確認できます。
+フォルダ構成を保ったまま`sample/minimal.html`を開きます。
+
+### minimal.jsに含める処理
+
+- controlled documentの保持
+- `document:change`のPatch反映
+- ノード追加
+- 接続追加
+- 通常フローとLOOP内部の接続先判定
+- ノード、エッジ、付箋の削除
+- Undo / Redo履歴
+- DAGモード
+- 22pxノードグリッド
+- 24px接続先スナップ
+
+ノード移動、範囲選択、パン、ズーム、付箋の編集・移動・リサイズ、複製などはWorkflowDesigner本体がDocument Patchを生成し、同じ`document:change`処理で反映します。
+
+### minimal.jsに含めない処理
+
+次はWorkflowDesignerを使うための必須処理ではないため、最小構成から除外しています。
+
+- イベントログ画面
+- 疑似ワークフロー実行
+- `waiting / running / success / error`のデモ演出
+- デモ専用カスタムアイコン
+- 外部リンクを開くデモ
+- サンプル専用デバッグ公開
+
+## 全機能サンプル
+
+`sample/index.html`は、ライブラリの基本編集機能に加えてデモ表示も確認するためのサンプルです。
+
+```text
+sample/index.html
+sample/sample.css
+sample/sample_app.js
+sample/icons/
+```
+
+`sample/sample.css`と`sample/sample_app.js`はサンプル専用です。これらを実運用ページへコピーする必要はありません。
+
+## Documentの管理方式
+
+WorkflowDesignerはcontrolled input方式です。
+
+利用アプリが`document`を正本として保持し、WorkflowDesignerが直接その正本を書き換えることはありません。
+
+編集時は次の流れになります。
+
+```text
+ユーザー操作
+    ↓
+WorkflowDesigner
+    ↓
+document:change { patch, inversePatch, reason, transactionId }
+    ↓
+利用アプリが正本へPatchを適用
+    ↓
+designer.updateDocument(patch)
+```
+
+`applyDocumentPatch(document, patch)`は、Patch適用後の新しいDocumentを返します。
+
+## 要求イベント
+
+一部の操作は、WorkflowDesignerがデータ構造を決め打ちせず、利用アプリへ要求イベントとして通知します。
+
+| イベント | 用途 | 利用側の処理 |
+|---|---|---|
+| `document:change` | 移動、付箋編集、複製などでPatchが生成された | Patchを正本へ適用する |
+| `node:add-request` | 新規ノード追加要求 | `steps`へノードを追加する |
+| `connect:create-request` | 接続作成要求 | 対象の`flows[].edges`または`loop.flows[]`へ追加する |
+| `delete:request` | 選択対象の削除要求 | ノード、エッジ、付箋を正本から削除する |
+| `command:execute` | Undo / Redoなどのコマンド実行 | 必要なアプリ側処理を実行する |
+| `run:request` | 実行要求 | 実行基盤へ接続する |
+| `node:open-detail` | ノード詳細を開く要求 | 詳細画面などを開く |
+| `external-link:open-request` | 外部リンクを開く要求 | 利用側の方針でリンクを処理する |
+| `selection:change` | 選択状態変更 | 必要なら外部UIへ反映する |
+| `viewport:change` | パン・ズーム変更 | 必要なら外部状態へ保存する |
+
+イベント登録は次の形式です。
+
+```js
+const unsubscribe = designer.on("selection:change", ({ selection }) => {
+  console.log(selection);
+});
+
+// 解除
+unsubscribe();
+```
+
+または`off(event, handler)`でも解除できます。
+
+## LOOP
+
+`node_type: "loop"`は通常ノードと同じカードとして表示し、大きな背景フレームは描画しません。
+
+LOOPノードには4つの接続点があります。
+
+```text
+左上   enter   通常フローからLOOPへ入る
+左下   return  LOOP内部の戻り線がLOOPへ戻る
+右上   done    LOOP完了後の通常フローへ出る
+右下   loop    LOOP内部処理へ入る
+```
+
+LOOP内部ノードは`loop_owner_id`で所属LOOPを指定します。
+
+```js
+{
+  step_id: "03",
+  loop_owner_id: "02",
+  node_type: "task",
+  label: "ループ処理",
+  ui_position: { x: 550, y: 396 }
+}
+```
+
+LOOP内部のエッジは`loop.flows[loopStepId].edges`に保持します。
+
+```js
+loop: {
+  flows: {
+    "02": {
+      edges: [
+        { from: "START", to: "03", order: 1 },
+        { from: "03", to: "END", order: 2 }
+      ]
+    }
+  }
+}
+```
+
+`START`はLOOPノードの`loop`ポート、`END`は`return`ポートに対応します。
+
+## ノードとエッジ
+
+標準ノードは88pxのビジュアル領域を中心に表示し、その下へ`label`と`description`を表示します。
+
+通常ノードの入力は左中央、出力は右中央です。STARTは右側出力のみ、ENDは左側入力のみを持ちます。
+
+エッジは水平・垂直の直交線を基本とし、折れ曲がりを約8pxで丸めます。右向き接続は、同じY座標なら水平線、異なるY座標なら中間Xで縦方向へ移動します。左向き接続とLOOPの戻り線には迂回ルートを使用します。
+
+障害物回避やエッジ同士の交差回避は行いません。
+
+## 公開API
+
+### createWorkflowDesigner(options)
+
+WorkflowDesignerインスタンスを生成して返します。生成しただけではDOMへmountされません。
+
+```js
+const designer = createWorkflowDesigner(options);
+designer.mount();
+```
+
+主なoptions:
+
+| option | 内容 |
+|---|---|
+| `root` | 配置先DOM要素 |
+| `document` | 初期Document |
+| `viewport` | 初期パン・ズーム位置 |
+| `graphMode` | `"dag"`などのグラフ制約 |
+| `nodeGrid` | ノードグリッド設定 |
+| `connectionSnapDistance` | 接続スナップ距離 |
+| `readonly` | 編集禁止 |
+| `nodeRenderers` | ノードタイプ別カスタム描画 |
+| `theme` | CSSカスタムプロパティ上書き |
+
+### applyDocumentPatch(document, patch)
+
+DocumentへPatchを適用し、**適用後の新しいDocument**を返します。入力Documentを正本として直接書き換える用途ではなく、返却値を新しい正本として保持してください。
+
+### instance API
+
+| API | 主な返却値 |
+|---|---|
+| `mount()` | 同じdesignerインスタンス |
+| `destroy()` | なし |
+| `setDocument(document)` | なし |
+| `getDocument()` | 現在のDocumentのコピー |
+| `updateDocument(patch)` | Patch適用後のDocumentのコピー |
+| `setSelection(selection)` | なし |
+| `getSelection()` | 現在のSelectionのコピー |
+| `setViewport(viewport)` | なし |
+| `getViewport()` | 現在のViewportのコピー |
+| `setStatus(status)` | なし |
+| `setReadonly(readonly)` | なし |
+| `setNodeRenderers(renderers)` | なし |
+| `copy(selection)` | コピー用fragment |
+| `duplicate(selection)` | transaction、ID対応表、Selection。対象なしの場合は`null` |
+| `paste(fragment)` | transaction、ID対応表、Selection |
+| `on(event, handler)` | 購読解除関数 |
+| `off(event, handler)` | なし |
 
 ## テスト
 
-### JavaScriptユニットテスト
+ライブラリ利用時にNode.jsやPythonは不要です。以下は開発・検証用です。
 
-Node.jsがある環境で実行します。ライブラリ利用時にはNode.jsは不要です。
+### JavaScriptユニットテスト
 
 ```bash
 node test/test_grid_snap.js
@@ -134,64 +383,10 @@ python test/verify_sample.py
 
 ### ブラウザ検証
 
-Python版PlaywrightとChromiumが必要です。
+Python版PlaywrightとChromiumがある環境で実行します。
 
 ```bash
+python test/smoke_library_css.py
+python test/smoke_minimal.py
 python test/smoke_sample.py
 ```
-
-
-## 標準ノード表示
-
-`steps[]`の標準表示では、`node_type`に対応する画像・SVGアイコンを中央へ表示し、その下へ`label`と`description`を常時表示します。
-
-```js
-{
-  step_id: "01",
-  node_type: "source",
-  label: "受注DBを読込",
-  description: "受注データを取得",
-  ui_position: { x: 220, y: 176 }
-}
-```
-
-アイコンは`nodeRenderers[node_type].renderIcon()`で指定します。`description`が空の場合は説明行を非表示にします。エッジの接続位置は、ラベル領域ではなく88pxのアイコン枠を基準にします。通常ノードは左中央に入力点、右中央に出力点を常時表示します。STARTは右側の出力点のみ、ENDは左側の入力点のみを表示します。出力点を左ドラッグすると接続を開始し、接続点の操作はノード移動より優先されます。
-
-エッジは水平・垂直の直交線を基本とし、折れ曲がり部分だけ8pxで丸めます。通常の右向き接続では固定の迂回レーンを使わず、Y座標が同じなら水平直線、Y座標が異なるなら始点と終点の中間Xで一度だけ縦方向へ移動します。左向き・loop-backだけは接続点を回り込むための迂回ルートを使います。接続中プレビューとノードドラッグ中の追従でも同じルーティング方式を使います。障害物回避とエッジ同士の交差回避は行いません。
-
-`node_type: "loop"`のノードは背景枠を描画せず、通常ノードと同じカードとして表示します。右側には`done`と`loop`の2つの出力点があります。`done`はループ完了後の通常フロー、`loop`はループ内部グラフへの接続に使用します。接続要求の`connect:create-request`には、選択した出力点を`source_port`として通知します。
-
-## 公開API
-
-```js
-const {
-  createWorkflowDesigner,
-  applyDocumentPatch
-} = window.zizPackages.workflowDesigner;
-```
-
-主なinstance APIは次のとおりです。
-
-- `mount()`
-- `destroy()`
-- `setDocument(document)`
-- `getDocument()`
-- `updateDocument(patch)`
-- `setSelection(selection)`
-- `getSelection()`
-- `setViewport(viewport)`
-- `getViewport()`
-- `setStatus(status)`
-- `setReadonly(readonly)`
-- `setNodeRenderers(renderers)`
-- `duplicate(selection)`
-- `copy(selection)`
-- `paste(fragment)`
-- `on(event, handler)`
-- `off(event, handler)`
-
-## 責務の境界
-
-WorkflowDesignerは、描画、選択、移動、接続、共通グラフ制約、標準ID発番、Document Patch生成を担当します。
-
-保存、読込、Undo／Redo履歴、削除確認、実行処理、backend通信、業務固有のvalidationは利用アプリ側で担当します。
