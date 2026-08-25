@@ -280,7 +280,7 @@
   cursor: default;
 }
 
-:root {
+.zwd {
   --zwd-toolbar-bg: rgba(255, 255, 255, 0.96);
   --zwd-toolbar-border: #d7dce3;
   --zwd-toolbar-shadow: 0 6px 20px rgba(20, 28, 40, 0.14);
