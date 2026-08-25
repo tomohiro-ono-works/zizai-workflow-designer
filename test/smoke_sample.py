@@ -243,7 +243,22 @@ with sync_playwright() as playwright:
     )
 
     node_count = page.locator(".zwd-node").count()
-    page.mouse.click(1300, 800, button="right")
+    zwd_box = page.locator(".zwd").bounding_box()
+    occupied_boxes = page.locator(".zwd-node, .zwd-note, .zwd-edge").evaluate_all(
+        "elements => elements.map(el => el.getBoundingClientRect())"
+        ".map(r => ({x: r.x, y: r.y, width: r.width, height: r.height}))"
+    )
+    assert zwd_box
+    empty_canvas_point = (
+        zwd_box["x"] + zwd_box["width"] / 2,
+        zwd_box["y"] + zwd_box["height"] - 24,
+    )
+    assert not any(
+        box["x"] <= empty_canvas_point[0] <= box["x"] + box["width"]
+        and box["y"] <= empty_canvas_point[1] <= box["y"] + box["height"]
+        for box in occupied_boxes
+    ), "expected empty canvas point to be clear of nodes, notes, and edges"
+    page.mouse.click(*empty_canvas_point, button="right")
     page.locator('[data-context-command="node.add"]').click()
     assert page.locator(".zwd-node").count() == node_count + 1
     assert page.locator('[data-node-id="08"]').count() == 1
