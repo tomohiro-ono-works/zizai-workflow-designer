@@ -62,6 +62,13 @@
         : null;
     }
 
+    function edgeFromElement(element) {
+      const key = element?.dataset?.edgeKey;
+      return key
+        ? renderer.getModel()?.edges.find((item) => item.key === key) || null
+        : null;
+    }
+
     function selectedNodeKeys() {
       return new Set(controller.getSelection().nodes.map(modules.nodeRefKey));
     }
@@ -163,6 +170,7 @@
       if (targets.nodeElement) {
         const node = nodeFromElement(targets.nodeElement);
         if (!node) return;
+        if (controller.isReadonly()) return;
         const selectedPort = String(
           targets.portElement?.dataset?.zwdPortRole || ""
         );
@@ -318,6 +326,7 @@
     }
 
     function finishConnect(event, current) {
+      if (controller.isReadonly()) return;
       const snapped = controller.findConnectionTarget(
         clientPoint(event),
         current.source
@@ -329,7 +338,19 @@
       const targetElement = document.elementFromPoint(event.clientX, event.clientY)
         ?.closest?.("[data-node-key]");
       const target = nodeFromElement(targetElement);
-      if (target) controller.requestConnect(current.source, target);
+      if (target) {
+        controller.requestConnect(current.source, target);
+        return;
+      }
+      const edgeElement = document.elementFromPoint(event.clientX, event.clientY)
+        ?.closest?.("[data-edge-key]");
+      const edge = edgeFromElement(edgeElement);
+      const drop = {
+        kind: edge ? "edge" : "canvas",
+        position: worldPoint(event)
+      };
+      if (edge) drop.edge_ref = modules.cloneValue(edge.ref);
+      controller.requestConnectDrop(current.source, drop);
     }
 
     function rectangleNodes(current) {
@@ -418,6 +439,13 @@
       if (external) {
         event.preventDefault();
         controller.emit("external-link:open-request", { url: external });
+        return;
+      }
+      const blankCanvas = event.target.closest("[data-zwd-viewport]") &&
+        !event.target.closest("[data-node-key], [data-edge-key], [data-note-id]");
+      if (event.button === 0 && blankCanvas && controller.getAnnotationMode()) {
+        event.preventDefault();
+        controller.addNote(worldPoint(event));
       }
     }
 

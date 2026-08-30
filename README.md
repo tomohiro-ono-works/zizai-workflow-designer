@@ -237,8 +237,10 @@ designer.updateDocument(patch)
 | `document:change` | 移動、付箋編集、複製などでPatchが生成された | Patchを正本へ適用する |
 | `node:add-request` | 新規ノード追加要求 | `steps`へノードを追加する |
 | `connect:create-request` | 接続作成要求 | 対象の`flows[].edges`または`loop.flows[]`へ追加する |
+| `connect:drop-request` | 接続gestureが空白またはedgeで終了した | source、drop位置、任意のedgeを使って追加・挿入UIを処理する |
 | `delete:request` | 選択対象の削除要求 | ノード、エッジ、付箋を正本から削除する |
 | `command:execute` | Undo / Redoなどのコマンド実行 | 必要なアプリ側処理を実行する |
+| `annotation:mode-change` | toolbarまたはEscapeで付箋modeが変わった | 必要なら外部UIへmodeを反映する |
 | `run:request` | 実行要求 | 実行基盤へ接続する |
 | `node:open-detail` | ノード詳細を開く要求 | 詳細画面などを開く |
 | `external-link:open-request` | 外部リンクを開く要求 | 利用側の方針でリンクを処理する |
@@ -257,6 +259,50 @@ unsubscribe();
 ```
 
 または`off(event, handler)`でも解除できます。
+
+### configurable context actions
+
+`contextActions` optionへ同期関数を渡すと、右クリック対象ごとの標準menuを利用側が供給するmenuへ置き換えられます。関数には`{ target, readonly }`が渡され、`target`は`node_ref`、`edge_ref`、`selection`、`annotation_id`、`position`だけを含む公開値です。明示的な`[]`だけがmenuを非表示にします。providerがthrowした場合、Promiseを返した場合、または配列以外を返した場合は安全に標準menuへfallbackします。
+
+```js
+const designer = createWorkflowDesigner({
+  root,
+  document,
+  contextActions: ({ target, readonly }) => {
+    if (readonly) return [];
+    if (target.kind === "node") {
+      return [
+        { commandId: "loop.add-inside", label: "Add inside" },
+        { commandId: "loop.add-after", label: "Add after" }
+      ];
+    }
+    if (target.kind === "edge") {
+      return [{ commandId: "merge.detach", label: "Detach relationship" }];
+    }
+    return [];
+  }
+});
+```
+
+選択したactionは既存の`command:execute { commandId, target }`として通知されます。WorkflowDesignerはcommand IDの意味を解釈せず、loop内／loop後追加や関係解除を含むDocument変更は利用側が行います。入力targetと通知payloadは内部modelを公開しないコピーです。
+
+### 接続gestureのdrop要求
+
+接続gestureがnodeで終了した場合は従来どおり`connect:create-request`を通知します。空白またはedgeで終了した場合は`connect:drop-request`を通知し、Documentを直接変更しません。
+
+```js
+designer.on("connect:drop-request", ({ source_node_ref, source_port, drop }) => {
+  // drop.kind: "canvas" | "edge"
+  // drop.position: { x, y }
+  // drop.edge_ref: edge dropの場合だけ存在
+});
+```
+
+### Undo / Redoとannotation mode
+
+toolbarのUndo／Redoはそれぞれ`command:execute`の`history.undo`／`history.redo`として通知され、履歴自体は利用側が所有します。
+
+annotation mode toggleはlibrary内の一時UI stateだけを変更し、`annotation:mode-change { active, reason }`を通知します。Escapeでmodeを終了します。`setAnnotationMode(active)`はcontrolled setterのためeventを再通知しません。既存の`annotation.add`は引き続き付箋追加のDocument Patchを生成します。
 
 ## LOOP
 
@@ -332,6 +378,8 @@ designer.mount();
 | `nodeGrid` | ノードグリッド設定 |
 | `connectionSnapDistance` | 接続スナップ距離 |
 | `readonly` | 編集禁止 |
+| `contextActions` | 右クリック対象から汎用action descriptor配列を同期で返す関数。`[]`はmenu非表示、throw／Promise／非配列は標準menuへfallback |
+| `annotationMode` | 初期annotation mode state |
 | `nodeRenderers` | ノードタイプ別カスタム描画 |
 | `theme` | CSSカスタムプロパティ上書き |
 
@@ -354,6 +402,8 @@ DocumentへPatchを適用し、**適用後の新しいDocument**を返します�
 | `getViewport()` | 現在のViewportのコピー |
 | `setStatus(status)` | なし |
 | `setReadonly(readonly)` | なし |
+| `setAnnotationMode(active)` | なし |
+| `getAnnotationMode()` | 現在のannotation mode state |
 | `setNodeRenderers(renderers)` | なし |
 | `copy(selection)` | コピー用fragment |
 | `duplicate(selection)` | transaction、ID対応表、Selection。対象なしの場合は`null` |

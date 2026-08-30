@@ -78,6 +78,13 @@
       "↶",
       commandLabels.undo || "Undo"
     ));
+    const annotationModeButton = toolbarButton(
+      "annotation.mode-toggle",
+      "✎",
+      commandLabels.annotationMode || "Annotation mode"
+    );
+    annotationModeButton.setAttribute("aria-pressed", "false");
+    toolbar.appendChild(annotationModeButton);
     toolbar.appendChild(toolbarButton(
       "annotation.add",
       "▤",

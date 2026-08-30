@@ -1973,6 +1973,13 @@
       "↶",
       commandLabels.undo || "Undo"
     ));
+    const annotationModeButton = toolbarButton(
+      "annotation.mode-toggle",
+      "✎",
+      commandLabels.annotationMode || "Annotation mode"
+    );
+    annotationModeButton.setAttribute("aria-pressed", "false");
+    toolbar.appendChild(annotationModeButton);
     toolbar.appendChild(toolbarButton(
       "annotation.add",
       "▤",
@@ -2691,6 +2698,7 @@
       renderNotes(options.readonly);
       applySelection(options.selection);
       applyStatus(options.status);
+      applyAnnotationMode(options.annotationMode);
     }
 
     function applySelection(selection) {
@@ -2745,6 +2753,17 @@
       const value = modules.normalizeViewport(viewport);
       shell.world.style.transform =
         `translate(${value.x}px, ${value.y}px) scale(${value.zoom})`;
+    }
+
+    function applyAnnotationMode(active) {
+      const enabled = !!active;
+      if (shell.shell?.dataset) {
+        shell.shell.dataset.annotationMode = enabled ? "active" : "inactive";
+      }
+      const toggle = shell.toolbar?.querySelector?.(
+        '[data-zwd-command="annotation.mode-toggle"]'
+      );
+      toggle?.setAttribute("aria-pressed", enabled ? "true" : "false");
     }
 
     function nodeCenter(nodeKey, port = "out") {
@@ -2912,6 +2931,7 @@
       applySelection,
       applyStatus,
       applyViewport,
+      applyAnnotationMode,
       showConnection,
       hideConnection,
       setPreviewTransform,
@@ -3041,6 +3061,8 @@
     }
 
     function contextItems(target) {
+      const configured = controller.getContextActions?.(target);
+      if (configured !== null && configured !== undefined) return configured;
       const labels = controller.getCommandLabels();
       if (target?.kind === "selection") {
         return controller.isReadonly() ? [] : [
@@ -3153,6 +3175,9 @@
       const key = event.key.toLowerCase();
       if (event.key === "Escape") {
         event.preventDefault();
+        if (controller.getAnnotationMode?.()) {
+          controller.changeAnnotationMode(false, "escape");
+        }
         controller.select({ nodes: [], edges: [], annotation_ids: [] }, "escape");
       } else if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
@@ -3246,6 +3271,13 @@
         ? renderer.getModel()?.notes.find(
           (item) => item.noteId === element.dataset.noteId
         ) || null
+        : null;
+    }
+
+    function edgeFromElement(element) {
+      const key = element?.dataset?.edgeKey;
+      return key
+        ? renderer.getModel()?.edges.find((item) => item.key === key) || null
         : null;
     }
 
@@ -3350,6 +3382,7 @@
       if (targets.nodeElement) {
         const node = nodeFromElement(targets.nodeElement);
         if (!node) return;
+        if (controller.isReadonly()) return;
         const selectedPort = String(
           targets.portElement?.dataset?.zwdPortRole || ""
         );
@@ -3505,6 +3538,7 @@
     }
 
     function finishConnect(event, current) {
+      if (controller.isReadonly()) return;
       const snapped = controller.findConnectionTarget(
         clientPoint(event),
         current.source
@@ -3516,7 +3550,19 @@
       const targetElement = document.elementFromPoint(event.clientX, event.clientY)
         ?.closest?.("[data-node-key]");
       const target = nodeFromElement(targetElement);
-      if (target) controller.requestConnect(current.source, target);
+      if (target) {
+        controller.requestConnect(current.source, target);
+        return;
+      }
+      const edgeElement = document.elementFromPoint(event.clientX, event.clientY)
+        ?.closest?.("[data-edge-key]");
+      const edge = edgeFromElement(edgeElement);
+      const drop = {
+        kind: edge ? "edge" : "canvas",
+        position: worldPoint(event)
+      };
+      if (edge) drop.edge_ref = modules.cloneValue(edge.ref);
+      controller.requestConnectDrop(current.source, drop);
     }
 
     function rectangleNodes(current) {
@@ -3605,6 +3651,13 @@
       if (external) {
         event.preventDefault();
         controller.emit("external-link:open-request", { url: external });
+        return;
+      }
+      const blankCanvas = event.target.closest("[data-zwd-viewport]") &&
+        !event.target.closest("[data-node-key], [data-edge-key], [data-note-id]");
+      if (event.button === 0 && blankCanvas && controller.getAnnotationMode()) {
+        event.preventDefault();
+        controller.addNote(worldPoint(event));
       }
     }
 
@@ -3721,6 +3774,16 @@
       : "graph";
   }
 
+  function normalizeContextActions(value) {
+    if (!Array.isArray(value)) return null;
+    const actions = value.map((item) => {
+      const commandId = String(item?.commandId || "").trim();
+      const label = String(item?.label || "").trim();
+      return commandId && label ? { commandId, label } : null;
+    }).filter(Boolean);
+    return actions.length || value.length === 0 ? actions : null;
+  }
+
   function createWorkflowDesigner(options = {}) {
     const rootElement = options.root;
     if (!(rootElement instanceof HTMLElement)) {
@@ -3738,6 +3801,7 @@
     let viewport = modules.normalizeViewport(options.viewport);
     let status = modules.normalizeStatus(options.status);
     let readonly = !!options.readonly;
+    let annotationMode = !readonly && !!options.annotationMode;
     let nodeRenderers = normalizeRenderers(options.nodeRenderers);
     let mounted = false;
     let shell = null;
@@ -3759,6 +3823,11 @@
     const graphConstraints = typeof options.graphConstraints === "function"
       ? options.graphConstraints
       : null;
+    if (options.contextActions !== undefined &&
+        typeof options.contextActions !== "function") {
+      throw new TypeError("contextActions must be a function");
+    }
+    const contextActions = options.contextActions || null;
 
     function cycleValidationKey(scope, nodeId) {
       const id = String(nodeId || "");
@@ -3809,6 +3878,7 @@
       renderer.renderDocument(model, {
         nodeRenderers,
         readonly,
+        annotationMode,
         selection,
         status: effectiveStatus()
       });
@@ -3855,6 +3925,17 @@
       renderer?.applyViewport(viewport);
       emitter.emit("viewport:change", {
         viewport: modules.cloneValue(viewport)
+      });
+    }
+
+    function changeAnnotationModeFromUi(value, reason) {
+      const next = !readonly && !!value;
+      if (annotationMode === next) return;
+      annotationMode = next;
+      renderer?.applyAnnotationMode(annotationMode);
+      emitter.emit("annotation:mode-change", {
+        active: annotationMode,
+        reason: String(reason || "ui")
       });
     }
 
@@ -4014,6 +4095,26 @@
       return true;
     }
 
+    function requestConnectDrop(source, drop) {
+      const sourceNodeRef = modules.normalizeNodeRef(source?.ref);
+      if (!sourceNodeRef) return false;
+      const edgeRef = modules.normalizeEdgeRef(drop?.edge_ref);
+      const kind = drop?.kind === "edge" && edgeRef ? "edge" : "canvas";
+      const payload = {
+        source_node_ref: modules.cloneValue(sourceNodeRef),
+        drop: {
+          kind,
+          position: modules.normalizePosition(drop?.position)
+        }
+      };
+      if (source?.connectionPort) {
+        payload.source_port = String(source.connectionPort);
+      }
+      if (kind === "edge") payload.drop.edge_ref = modules.cloneValue(edgeRef);
+      emitter.emit("connect:drop-request", modules.cloneValue(payload));
+      return true;
+    }
+
     function currentNodeTarget(target) {
       if (target?.kind === "node") return target.node;
       const selected = selection.nodes[0];
@@ -4051,10 +4152,59 @@
       return modules.cloneValue(selection);
     }
 
+    function publicCommandTarget(target) {
+      if (target?.kind === "node") {
+        return {
+          kind: "node",
+          node_ref: modules.cloneValue(target.node.ref)
+        };
+      }
+      if (target?.kind === "selection") {
+        return {
+          kind: "selection",
+          selection: targetSelection(target)
+        };
+      }
+      if (target?.kind === "edge") {
+        return {
+          kind: "edge",
+          edge_ref: modules.cloneValue(target.edge.ref)
+        };
+      }
+      if (target?.kind === "note") {
+        return {
+          kind: "annotation",
+          annotation_id: String(target.noteId)
+        };
+      }
+      if (target?.kind === "canvas") {
+        return {
+          kind: "canvas",
+          position: modules.normalizePosition(target.point)
+        };
+      }
+      return null;
+    }
+
+    function getContextActions(target) {
+      if (!contextActions) return null;
+      try {
+        const configured = contextActions({
+          target: modules.cloneValue(publicCommandTarget(target)),
+          readonly
+        });
+        if (configured && typeof configured.then === "function") return null;
+        return normalizeContextActions(configured);
+      } catch (_error) {
+        return null;
+      }
+    }
+
     function executeCommand(commandId, target, point) {
       const command = String(commandId || "").trim();
       const editCommands = new Set([
         "node.add",
+        "annotation.mode-toggle",
         "annotation.add",
         "selection.delete",
         "selection.duplicate",
@@ -4063,6 +4213,9 @@
       if (readonly && editCommands.has(command)) return;
       if (command === "viewport.zoom-in") zoomBy(1.15);
       else if (command === "viewport.zoom-out") zoomBy(1 / 1.15);
+      else if (command === "annotation.mode-toggle") {
+        changeAnnotationModeFromUi(!annotationMode, "toolbar");
+      }
       else if (command === "node.add") {
         const location = modules.normalizePosition(target?.point || point, {
           x: 0,
@@ -4099,33 +4252,9 @@
           });
         }
       }
-      let publicTarget = null;
-      if (target?.kind === "node") {
-        publicTarget = {
-          kind: "node",
-          node_ref: modules.cloneValue(target.node.ref)
-        };
-      } else if (target?.kind === "selection") {
-        publicTarget = {
-          kind: "selection",
-          selection: targetSelection(target)
-        };
-      } else if (target?.kind === "edge") {
-        publicTarget = {
-          kind: "edge",
-          edge_ref: modules.cloneValue(target.edge.ref)
-        };
-      } else if (target?.kind === "note") {
-        publicTarget = {
-          kind: "annotation",
-          annotation_id: String(target.noteId)
-        };
-      } else if (target?.kind === "canvas") {
-        publicTarget = { kind: "canvas" };
-      }
       emitter.emit("command:execute", {
         commandId: command,
-        target: publicTarget
+        target: publicCommandTarget(target)
       });
     }
 
@@ -4134,18 +4263,22 @@
       getSelection: () => selection,
       getViewport: () => viewport,
       getCommandLabels: () => commandLabels,
+      getContextActions,
+      getAnnotationMode: () => annotationMode,
       isReadonly: () => readonly,
       snapNodePosition: (value) => modules.snapWorkflowPosition(value, nodeGrid),
       snapNodeDelta: (value) => modules.snapWorkflowDelta(value, nodeGrid),
       findConnectionTarget,
       select: selectFromUi,
       changeViewport: changeViewportFromUi,
+      changeAnnotationMode: changeAnnotationModeFromUi,
       commit,
       emit: emitter.emit,
       addNote,
       duplicate,
       executeCommand,
       requestConnect,
+      requestConnectDrop,
       refresh: renderDocument
     });
 
@@ -4217,7 +4350,15 @@
       },
       setReadonly(value) {
         readonly = !!value;
+        if (readonly) annotationMode = false;
         renderDocument();
+      },
+      setAnnotationMode(value) {
+        annotationMode = !readonly && !!value;
+        renderer?.applyAnnotationMode(annotationMode);
+      },
+      getAnnotationMode() {
+        return annotationMode;
       },
       setNodeRenderers(value) {
         nodeRenderers = normalizeRenderers(value);
