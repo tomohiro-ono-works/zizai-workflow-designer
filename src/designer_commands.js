@@ -15,6 +15,8 @@
     }
 
     function contextItems(target) {
+      const configured = controller.getContextActions?.(target);
+      if (configured !== null && configured !== undefined) return configured;
       const labels = controller.getCommandLabels();
       if (target?.kind === "selection") {
         return controller.isReadonly() ? [] : [
@@ -127,6 +129,9 @@
       const key = event.key.toLowerCase();
       if (event.key === "Escape") {
         event.preventDefault();
+        if (controller.getAnnotationMode?.()) {
+          controller.changeAnnotationMode(false, "escape");
+        }
         controller.select({ nodes: [], edges: [], annotation_ids: [] }, "escape");
       } else if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();

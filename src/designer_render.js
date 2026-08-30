@@ -314,6 +314,7 @@
       renderNotes(options.readonly);
       applySelection(options.selection);
       applyStatus(options.status);
+      applyAnnotationMode(options.annotationMode);
     }
 
     function applySelection(selection) {
@@ -368,6 +369,17 @@
       const value = modules.normalizeViewport(viewport);
       shell.world.style.transform =
         `translate(${value.x}px, ${value.y}px) scale(${value.zoom})`;
+    }
+
+    function applyAnnotationMode(active) {
+      const enabled = !!active;
+      if (shell.shell?.dataset) {
+        shell.shell.dataset.annotationMode = enabled ? "active" : "inactive";
+      }
+      const toggle = shell.toolbar?.querySelector?.(
+        '[data-zwd-command="annotation.mode-toggle"]'
+      );
+      toggle?.setAttribute("aria-pressed", enabled ? "true" : "false");
     }
 
     function nodeCenter(nodeKey, port = "out") {
@@ -535,6 +547,7 @@
       applySelection,
       applyStatus,
       applyViewport,
+      applyAnnotationMode,
       showConnection,
       hideConnection,
       setPreviewTransform,

@@ -75,7 +75,25 @@ with sync_playwright() as playwright:
 
     assert page.locator(".zwd-node").count() == 9
     assert page.locator(".zwd-loop-frame").count() == 0
-    assert page.locator(".zwd-toolbar .zwd-tool").count() == 6
+    assert page.locator(".zwd-toolbar .zwd-tool").count() == 7
+    annotation_mode_toggle = page.locator(
+        '[data-zwd-command="annotation.mode-toggle"]'
+    )
+    assert annotation_mode_toggle.count() == 1
+    assert annotation_mode_toggle.get_attribute("aria-pressed") == "false"
+    assert page.locator("[data-workflow-designer]").get_attribute(
+        "data-annotation-mode"
+    ) == "inactive"
+    annotation_mode_toggle.click()
+    assert annotation_mode_toggle.get_attribute("aria-pressed") == "true"
+    assert page.locator("[data-workflow-designer]").get_attribute(
+        "data-annotation-mode"
+    ) == "active"
+    annotation_mode_toggle.click()
+    assert annotation_mode_toggle.get_attribute("aria-pressed") == "false"
+    assert page.locator("[data-workflow-designer]").get_attribute(
+        "data-annotation-mode"
+    ) == "inactive"
     assert page.locator('.zwd-node__icon img').count() == 2
     assert page.locator('.zwd-node__icon svg').count() == 5
     assert page.locator('[data-run-status="idle"]').count() == 9
