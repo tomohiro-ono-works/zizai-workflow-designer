@@ -14,7 +14,26 @@
       cleanup.push(() => target.removeEventListener(eventName, handler, options));
     }
 
+    function annotationItems(target) {
+      const labels = controller.getCommandLabels();
+      if (controller.isReadonly()) return [];
+      if (target?.kind === "note") {
+        return controller.getNoteColors().map((color) => ({
+          commandId: "annotation.color",
+          label: color,
+          value: color
+        }));
+      }
+      return [{
+        commandId: "annotation.add",
+        label: labels.addNote || "Add sticky note"
+      }];
+    }
+
     function contextItems(target) {
+      // Annotation mode is note-edit only, so it owns the whole menu and does
+      // not consult the host's node-oriented context actions.
+      if (controller.getAnnotationMode()) return annotationItems(target);
       const configured = controller.getContextActions?.(target);
       if (configured !== null && configured !== undefined) return configured;
       const labels = controller.getCommandLabels();
@@ -40,14 +59,9 @@
         );
         return items;
       }
-      if (target?.kind === "note") {
-        return controller.isReadonly()
-          ? []
-          : [{ commandId: "selection.delete", label: labels.delete || "Delete" }];
-      }
+      if (target?.kind === "note") return [];
       return controller.isReadonly() ? [] : [
         { commandId: "node.add", label: labels.addNode || "Add node" },
-        { commandId: "annotation.add", label: labels.addNote || "Add sticky note" },
         { commandId: "workflow.run", label: labels.runWorkflow || "Run workflow" }
       ];
     }
@@ -63,9 +77,19 @@
 
     function onContextMenu(event) {
       event.preventDefault();
-      const nodeElement = event.target.closest("[data-node-key]");
-      const noteElement = event.target.closest("[data-note-id]");
-      const edgeElement = event.target.closest("[data-edge-key]");
+      const annotationMode = controller.getAnnotationMode();
+      // While annotation mode is ON, nodes and edges are inert: a right-click
+      // on them falls through to the canvas so the note lands under the
+      // pointer.
+      const nodeElement = annotationMode
+        ? null
+        : event.target.closest("[data-node-key]");
+      const noteElement = annotationMode
+        ? event.target.closest("[data-note-id]")
+        : null;
+      const edgeElement = annotationMode
+        ? null
+        : event.target.closest("[data-edge-key]");
 
       if (nodeElement) {
         const node = renderer.getModel()?.nodeByKey.get(nodeElement.dataset.nodeKey);
@@ -133,7 +157,18 @@
           controller.changeAnnotationMode(false, "escape");
         }
         controller.select({ nodes: [], edges: [], annotation_ids: [] }, "escape");
-      } else if (event.key === "Delete" || event.key === "Backspace") {
+        return;
+      }
+      if (controller.getAnnotationMode()) {
+        // Note-edit only: Delete removes the selected note, node-editing
+        // shortcuts stay silent.
+        if (event.key === "Delete" || event.key === "Backspace") {
+          event.preventDefault();
+          controller.executeCommand("selection.delete");
+        }
+        return;
+      }
+      if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
         controller.executeCommand("selection.delete");
       } else if ((event.ctrlKey || event.metaKey) && key === "d") {

@@ -140,6 +140,7 @@ const designer = createWorkflowDesigner({
   document: documentState,
   graphMode: "dag",
   nodeGrid: { enabled: true, size: 22 },
+  nodeMetrics: { width: 132, height: 132, visualSize: 88, iconSize: 48 },
   connectionSnapDistance: 24
 });
 
@@ -286,6 +287,10 @@ const designer = createWorkflowDesigner({
 
 選択したactionは既存の`command:execute { commandId, target }`として通知されます。WorkflowDesignerはcommand IDの意味を解釈せず、loop内／loop後追加や関係解除を含むDocument変更は利用側が行います。入力targetと通知payloadは内部modelを公開しないコピーです。
 
+action descriptorには任意の`value`（string／number）を持たせられます。指定した場合はmenu項目へ反映され、`command:execute { commandId, target, value }`として文字列で通知されます。
+
+annotation modeがONの間、右クリックmenuはlibraryが所有します。この間`contextActions`は呼ばれません。
+
 ### 接続gestureのdrop要求
 
 接続gestureがnodeで終了した場合は従来どおり`connect:create-request`を通知します。空白またはedgeで終了した場合は`connect:drop-request`を通知し、Documentを直接変更しません。
@@ -302,7 +307,29 @@ designer.on("connect:drop-request", ({ source_node_ref, source_port, drop }) => 
 
 toolbarのUndo／Redoはそれぞれ`command:execute`の`history.undo`／`history.redo`として通知され、履歴自体は利用側が所有します。
 
-annotation mode toggleはlibrary内の一時UI stateだけを変更し、`annotation:mode-change { active, reason }`を通知します。Escapeでmodeを終了します。`setAnnotationMode(active)`はcontrolled setterのためeventを再通知しません。既存の`annotation.add`は引き続き付箋追加のDocument Patchを生成します。
+annotation mode toggleはlibrary内の一時UI stateだけを変更し、`annotation:mode-change { active, reason }`を通知します。Escapeでmodeを終了します。`setAnnotationMode(active)`はcontrolled setterのためeventを再通知しません。
+
+annotation modeは既定でOFFです。2つのmodeは排他で、OFFはノード編集専用、ONは付箋編集専用です。
+
+**OFF（ノード編集モード）**
+
+- ノードの選択、詳細表示、移動、接続、ノードのcontext action、キーボード操作はすべて有効です。
+- 付箋はノード・エッジより背面に表示され、非編集の閲覧のみ可能です。付箋の新規作成、テキスト編集、移動、リサイズ、色変更、削除はすべて無効です。
+- 付箋本文中の`http://`／`https://`リンクをクリックした場合だけ`external-link:open-request`を通知します。遷移自体は行わないため、利用側の方針で処理してください。
+
+**ON（付箋編集モード）**
+
+- 付箋はノード・エッジより前面に表示され、テキスト編集、移動、リサイズ、色変更、Deleteキーによる削除が有効になります。
+- ノードの選択、詳細表示、移動、接続、追加、削除、複製、貼り付け、実行は発火しません。ノード編集のキーボード操作も無効です。空白キャンバスのpanとzoomは維持します。
+- キャンバスまたはノードを右クリックすると`annotation.add`だけを表示し、右クリックした位置へ新規付箋を作成します。
+- 付箋を右クリックすると`noteColors`の候補色だけを表示し、選択した色を`annotation.color`としてcommitします。
+- 付箋リンクのクリックは外部遷移を通知せず、付箋の編集を優先します。
+
+toolbarには付箋mode切替（`annotation.mode-toggle`）だけを置きます。新規付箋はON時の右クリックmenuからのみ作成され、空白キャンバスのクリック、複製、貼り付けでは作成されません。
+
+OFFへ戻すと、付箋は再び背面表示・編集不可の状態に戻ります。
+
+候補色は`noteColors` optionで指定します。既定値は`["#fff2a8", "#dff7e8", "#e7edff"]`で、先頭の色が新規付箋の初期色になります。
 
 ## LOOP
 
@@ -376,10 +403,12 @@ designer.mount();
 | `viewport` | 初期パン・ズーム位置 |
 | `graphMode` | `"dag"`などのグラフ制約 |
 | `nodeGrid` | ノードグリッド設定 |
+| `nodeMetrics` | ノード外形、visual、icon寸法。port／edge anchorとCSSへ同じ値を反映 |
 | `connectionSnapDistance` | 接続スナップ距離 |
 | `readonly` | 編集禁止 |
 | `contextActions` | 右クリック対象から汎用action descriptor配列を同期で返す関数。`[]`はmenu非表示、throw／Promise／非配列は標準menuへfallback |
 | `annotationMode` | 初期annotation mode state |
+| `noteColors` | 付箋の候補色。既定は`["#fff2a8", "#dff7e8", "#e7edff"]` |
 | `nodeRenderers` | ノードタイプ別カスタム描画 |
 | `theme` | CSSカスタムプロパティ上書き |
 
@@ -423,6 +452,9 @@ node test/test_live_edge_follow.js
 node test/test_node_card.js
 node test/test_loop_node.js
 node test/test_orthogonal_edges.js
+node test/test_generic_events.js
+node test/test_sticky_note_mode.js
+node test/test_bundle_parity.js
 ```
 
 ### 静的検証

@@ -7,7 +7,7 @@
 
   function appendTextWithLinks(container, text) {
     const value = String(text || "");
-    const pattern = /https:\/\/[^\s<>"']+/g;
+    const pattern = /https?:\/\/[^\s<>"']+/g;
     let cursor = 0;
     let match = pattern.exec(value);
     while (match) {

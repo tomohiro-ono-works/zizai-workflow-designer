@@ -33,6 +33,11 @@
           }
         );
         button.textContent = String(item.label || item.commandId);
+        if (item.value !== undefined && item.value !== null) {
+          const value = String(item.value);
+          button.setAttribute("data-context-value", value);
+          button.style.setProperty("--zwd-context-value", value);
+        }
         shell.menu.appendChild(button);
       });
       shell.menu.style.left = `${point.x}px`;

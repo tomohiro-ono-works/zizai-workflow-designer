@@ -115,7 +115,9 @@
 
     function beginLeftGesture(event, targets) {
       const model = renderer.getModel();
+      const annotationMode = controller.getAnnotationMode();
       if (targets.noteElement) {
+        if (!annotationMode) return;
         const note = noteFromElement(targets.noteElement);
         if (!note) return;
         if (event.target.closest("[data-note-resize]")) {
@@ -127,6 +129,9 @@
         }
         return;
       }
+      // Annotation mode is note-edit only: nodes and edges are inert, while a
+      // blank-canvas drag still pans the viewport.
+      if (annotationMode && (targets.nodeElement || targets.edgeElement)) return;
       if (targets.nodeElement) {
         const node = nodeFromElement(targets.nodeElement);
         if (!node) return;
@@ -167,6 +172,17 @@
 
     function beginRightGesture(event, targets) {
       suppressContextMenu = false;
+      if (controller.getAnnotationMode()) {
+        // Note-edit only: no connection gesture and no node box selection.
+        gesture = {
+          kind: "right-noop",
+          button: 2,
+          pointerId: event.pointerId,
+          startClient: clientPoint(event),
+          activated: false
+        };
+        return;
+      }
       if (targets.nodeElement) {
         const node = nodeFromElement(targets.nodeElement);
         if (!node) return;
@@ -424,28 +440,24 @@
         controller.executeCommand(command, null, worldPoint(event));
         return;
       }
-      const contextCommand = event.target.closest("[data-context-command]")
-        ?.dataset.contextCommand;
-      if (contextCommand) {
+      const contextItem = event.target.closest("[data-context-command]");
+      if (contextItem) {
         renderer.hideContextMenu();
         controller.executeCommand(
-          contextCommand,
+          contextItem.dataset.contextCommand,
           commandInteraction.getContextTarget(),
-          worldPoint(event)
+          worldPoint(event),
+          contextItem.dataset.contextValue
         );
         return;
       }
       const external = event.target.closest("[data-external-url]")?.dataset.externalUrl;
       if (external) {
         event.preventDefault();
+        // Annotation mode is note-edit only, so note editing takes priority
+        // over following a link.
+        if (controller.getAnnotationMode()) return;
         controller.emit("external-link:open-request", { url: external });
-        return;
-      }
-      const blankCanvas = event.target.closest("[data-zwd-viewport]") &&
-        !event.target.closest("[data-node-key], [data-edge-key], [data-note-id]");
-      if (event.button === 0 && blankCanvas && controller.getAnnotationMode()) {
-        event.preventDefault();
-        controller.addNote(worldPoint(event));
       }
     }
 

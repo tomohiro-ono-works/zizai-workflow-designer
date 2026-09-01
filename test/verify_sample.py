@@ -31,15 +31,18 @@ assert "designer_" not in html, "sample HTML must not enumerate internal designe
 assert html.count("<script") == 2, "sample must load one library script and one app script"
 assert "import " not in app, "sample app must be a classic script for file:// support"
 
+dom_js = (SRC / "designer_dom.js").read_text(encoding="utf-8")
 for command in [
     "viewport.zoom-in",
     "viewport.zoom-out",
     "history.redo",
     "history.undo",
-    "annotation.add",
+    "annotation.mode-toggle",
     "workflow.run",
 ]:
-    assert command in (SRC / "designer_dom.js").read_text(encoding="utf-8"), command
+    assert command in dom_js, command
+# Notes are created from the annotation-mode right-click menu only.
+assert "annotation.add" not in dom_js, "the toolbar must not expose note creation"
 
 for marker in [
     "createWorkflowDesigner",
@@ -138,9 +141,9 @@ assert '.zwd-node__port--done' in core_css
 assert '.zwd-node__port--loop' in core_css
 assert '.zwd-loop-frame' not in sample_css
 assert ".zwd-node--start .zwd-node__visual" in core_css
-assert "border-radius: 44px 0 0 44px" in core_css
+assert "border-radius: 999px 0 0 999px" in core_css
 assert ".zwd-node--end .zwd-node__visual" in core_css
-assert "border-radius: 0 44px 44px 0" in core_css
+assert "border-radius: 0 999px 999px 0" in core_css
 assert ".zwd-node--start," not in sample_css, "sample CSS must not own START/END terminal geometry"
 
 minimal_html = (SAMPLE / "minimal.html").read_text(encoding="utf-8")

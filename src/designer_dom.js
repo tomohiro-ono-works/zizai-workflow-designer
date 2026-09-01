@@ -86,11 +86,6 @@
     annotationModeButton.setAttribute("aria-pressed", "false");
     toolbar.appendChild(annotationModeButton);
     toolbar.appendChild(toolbarButton(
-      "annotation.add",
-      "▤",
-      commandLabels.addNote || "Add sticky note"
-    ));
-    toolbar.appendChild(toolbarButton(
       "workflow.run",
       "▶",
       commandLabels.runWorkflow || "Run workflow"
@@ -110,14 +105,14 @@
     const defs = svgElement("defs");
     const marker = svgElement("marker", "", {
       id: `zwd-arrow-${Math.random().toString(36).slice(2)}`,
-      markerWidth: "8",
-      markerHeight: "8",
-      refX: "7",
-      refY: "4",
+      markerWidth: "6.4",
+      markerHeight: "6.4",
+      refX: "5.6",
+      refY: "3.2",
       orient: "auto",
       markerUnits: "strokeWidth"
     });
-    marker.appendChild(svgElement("path", "zwd-arrow", { d: "M0,0 L8,4 L0,8 Z" }));
+    marker.appendChild(svgElement("path", "zwd-arrow", { d: "M0,0 L6.4,3.2 L0,6.4 Z" }));
     defs.appendChild(marker);
     edges.appendChild(defs);
     edges.dataset.markerId = marker.id;

@@ -8,13 +8,28 @@
   function normalizeGrid(value) {
     const source = value && typeof value === "object" ? value : {};
     const size = Math.max(1, modules.asFiniteNumber(source.size, 22));
-    return {
+    const output = {
       enabled: source.enabled === true,
       size
     };
+    if (source.origin && typeof source.origin === "object") {
+      output.origin = modules.normalizePosition(source.origin);
+    }
+    return output;
   }
 
   function snapPosition(value, gridValue) {
+    const point = modules.normalizePosition(value);
+    const grid = normalizeGrid(gridValue);
+    if (!grid.enabled) return point;
+    const origin = modules.normalizePosition(grid.origin);
+    return {
+      x: origin.x + Math.round((point.x - origin.x) / grid.size) * grid.size,
+      y: origin.y + Math.round((point.y - origin.y) / grid.size) * grid.size
+    };
+  }
+
+  function snapDelta(value, gridValue) {
     const point = modules.normalizePosition(value);
     const grid = normalizeGrid(gridValue);
     if (!grid.enabled) return point;
@@ -22,10 +37,6 @@
       x: Math.round(point.x / grid.size) * grid.size,
       y: Math.round(point.y / grid.size) * grid.size
     };
-  }
-
-  function snapDelta(value, gridValue) {
-    return snapPosition(value, gridValue);
   }
 
   function nodeAnchor(node, port = "in") {

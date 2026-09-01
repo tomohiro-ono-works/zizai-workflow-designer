@@ -15,6 +15,35 @@
   const DEFAULT_GAP_X = 252;
   const DEFAULT_GAP_Y = 180;
 
+  function normalizeNodeMetrics(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const visualSize = Math.max(
+      1,
+      modules.asFiniteNumber(source.visualSize, NODE_VISUAL_SIZE)
+    );
+    const width = Math.max(
+      visualSize,
+      modules.asFiniteNumber(source.width, NODE_WIDTH)
+    );
+    const height = Math.max(
+      visualSize,
+      modules.asFiniteNumber(source.height, NODE_HEIGHT)
+    );
+    const iconSize = Math.min(
+      visualSize,
+      Math.max(1, modules.asFiniteNumber(source.iconSize, 48))
+    );
+    return {
+      width,
+      height,
+      visualSize,
+      iconSize,
+      visualOffsetX: (width - visualSize) / 2,
+      loopUpperY: Math.round(visualSize * 26 / NODE_VISUAL_SIZE),
+      loopLowerY: Math.round(visualSize * 62 / NODE_VISUAL_SIZE)
+    };
+  }
+
   function position(value, fallback) {
     return modules.normalizePosition(value, fallback);
   }
@@ -31,7 +60,7 @@
     return `unassigned:node:${nodeId}`;
   }
 
-  function createStepNode(step, index) {
+  function createStepNode(step, index, metrics) {
     const stepId = String(step?.step_id || "").trim();
     if (!stepId) return null;
     const fallback = {
@@ -41,16 +70,22 @@
     const nodeType = String(step?.node_type || "task").trim() || "task";
     const anchors = nodeType === "loop"
       ? {
-          enter: { x: NODE_VISUAL_OFFSET_X, y: 26 },
-          return: { x: NODE_VISUAL_OFFSET_X, y: 62 },
-          done: { x: NODE_VISUAL_OFFSET_X + NODE_VISUAL_SIZE, y: 26 },
-          loop: { x: NODE_VISUAL_OFFSET_X + NODE_VISUAL_SIZE, y: 62 }
+          enter: { x: metrics.visualOffsetX, y: metrics.loopUpperY },
+          return: { x: metrics.visualOffsetX, y: metrics.loopLowerY },
+          done: {
+            x: metrics.visualOffsetX + metrics.visualSize,
+            y: metrics.loopUpperY
+          },
+          loop: {
+            x: metrics.visualOffsetX + metrics.visualSize,
+            y: metrics.loopLowerY
+          }
         }
       : {
-          in: { x: NODE_VISUAL_OFFSET_X, y: NODE_VISUAL_SIZE / 2 },
+          in: { x: metrics.visualOffsetX, y: metrics.visualSize / 2 },
           out: {
-            x: NODE_VISUAL_OFFSET_X + NODE_VISUAL_SIZE,
-            y: NODE_VISUAL_SIZE / 2
+            x: metrics.visualOffsetX + metrics.visualSize,
+            y: metrics.visualSize / 2
           }
         };
     return {
@@ -62,14 +97,14 @@
       step,
       x: position(step?.ui_position, fallback).x,
       y: position(step?.ui_position, fallback).y,
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
+      width: metrics.width,
+      height: metrics.height,
       anchors,
       documentPath: ["steps", index, "ui_position"]
     };
   }
 
-  function createTerminalNode(flowId, flow, nodeId, flowIndex) {
+  function createTerminalNode(flowId, flow, nodeId, flowIndex, metrics) {
     const isStart = nodeId === "START";
     const fallback = {
       x: isStart ? 72 : 900,
@@ -86,11 +121,21 @@
       ref: { node_id: nodeId, flow_id: flowId },
       x: point.x,
       y: point.y,
-      width: TERMINAL_WIDTH,
-      height: TERMINAL_HEIGHT,
+      width: metrics.width,
+      height: metrics.height,
       anchors: isStart
-        ? { out: { x: NODE_VISUAL_OFFSET_X + NODE_VISUAL_SIZE, y: NODE_VISUAL_SIZE / 2 } }
-        : { in: { x: NODE_VISUAL_OFFSET_X, y: NODE_VISUAL_SIZE / 2 } },
+        ? {
+            out: {
+              x: metrics.visualOffsetX + metrics.visualSize,
+              y: metrics.visualSize / 2
+            }
+          }
+        : {
+            in: {
+              x: metrics.visualOffsetX,
+              y: metrics.visualSize / 2
+            }
+          },
       documentPath: ["flows", flowId, field, "ui_position"]
     };
   }
@@ -291,18 +336,25 @@
     };
   }
 
-  function buildGraphModel(document) {
+  function buildGraphModel(document, options = {}) {
     const nodes = [];
     const nodeByKey = new Map();
+    const nodeMetrics = normalizeNodeMetrics(options.nodeMetrics);
     Object.entries(document?.flows || {}).forEach(([flowId, flow], index) => {
       ["START", "END"].forEach((nodeId) => {
-        const node = createTerminalNode(flowId, flow, nodeId, index);
+        const node = createTerminalNode(
+          flowId,
+          flow,
+          nodeId,
+          index,
+          nodeMetrics
+        );
         nodes.push(node);
         nodeByKey.set(node.key, node);
       });
     });
     (Array.isArray(document?.steps) ? document.steps : []).forEach((step, index) => {
-      const node = createStepNode(step, index);
+      const node = createStepNode(step, index, nodeMetrics);
       if (!node) return;
       nodes.push(node);
       nodeByKey.set(node.key, node);
@@ -593,6 +645,7 @@
   }
 
   modules.buildWorkflowGraphModel = buildGraphModel;
+  modules.normalizeWorkflowNodeMetrics = normalizeNodeMetrics;
   modules.workflowStepKey = stepKey;
   modules.workflowFlowNodeKey = flowNodeKey;
   modules.workflowGraphScopeForNode = graphScopeForNode;

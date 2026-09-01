@@ -120,8 +120,19 @@ with sync_playwright() as playwright:
     assert page.locator(".zwd-edge").count() == initial_edges
 
     # Sticky note edits are controlled-document transactions and Undo/Redo works.
+    # Notes are created from the annotation-mode right-click menu only.
     initial_notes = page.locator(".zwd-note").count()
-    page.locator('[data-zwd-command="annotation.add"]').click()
+    page.locator('[data-zwd-command="annotation.mode-toggle"]').click()
+    assert page.locator('.zwd[data-annotation-mode="active"]').count() == 1
+    zwd_box = page.locator(".zwd").bounding_box()
+    assert zwd_box
+    page.mouse.click(
+        zwd_box["x"] + zwd_box["width"] / 2,
+        zwd_box["y"] + zwd_box["height"] - 24,
+        button="right",
+    )
+    assert page.locator("[data-context-command]").count() == 1
+    page.locator('[data-context-command="annotation.add"]').click()
     page.wait_for_timeout(50)
     assert page.locator(".zwd-note").count() == initial_notes + 1
     page.locator('[data-zwd-command="history.undo"]').click()

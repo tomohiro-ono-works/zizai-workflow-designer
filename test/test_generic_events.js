@@ -384,7 +384,6 @@ const tests = {
     const actions = openContext(shell, shell.querySelector("[data-zwd-viewport]"));
     assert.deepEqual(actions.map((action) => action.dataset.contextCommand), [
       "node.add",
-      "annotation.add",
       "workflow.run"
     ]);
     designer.destroy();
@@ -399,7 +398,6 @@ const tests = {
     const actions = openContext(shell, shell.querySelector("[data-zwd-viewport]"));
     assert.deepEqual(actions.map((action) => action.dataset.contextCommand), [
       "node.add",
-      "annotation.add",
       "workflow.run"
     ]);
     designer.destroy();
@@ -413,7 +411,6 @@ const tests = {
     const actions = openContext(shell, shell.querySelector("[data-zwd-viewport]"));
     assert.deepEqual(actions.map((action) => action.dataset.contextCommand), [
       "node.add",
-      "annotation.add",
       "workflow.run"
     ]);
     designer.destroy();
@@ -708,8 +705,9 @@ const tests = {
     designer.destroy();
   },
 
-  // Catches annotation mode that exposes state but does not turn a primary
-  // blank-canvas click into the existing controlled add-note transaction.
+  // Catches a primary blank-canvas click that still creates a note. Note
+  // creation is only ever triggered by the "annotation.add" toolbar/context
+  // command while annotation mode is ON; a blank-canvas click never adds one.
   "annotation-placement"() {
     const document = workflowDocument();
     document.notes = [{
@@ -752,12 +750,18 @@ const tests = {
     });
     click(shell, viewport, { x: 210, y: 220 });
 
+    assert.equal(changes.length, 0, "a blank-canvas click must never add a note");
+
+    const actions = openContext(shell, viewport, { x: 210, y: 220 });
+    assert.deepEqual(actions.map((action) => action.dataset.contextCommand), [
+      "annotation.add"
+    ]);
+    click(shell, actions[0], { x: 210, y: 220 });
     assert.equal(changes.length, 1);
     assert.equal(changes[0].reason, "annotation.add");
     assert.deepEqual(changes[0].patch[0].path, ["notes", 1]);
-    assert.deepEqual(changes[0].patch[0].value.ui_position, { x: 100, y: 100 });
-    assert.deepEqual(changes[0].inversePatch, [{ op: "remove", path: ["notes", 1] }]);
     assert.ok(changes[0].patch[0].value.note_id);
+    assert.deepEqual(changes[0].patch[0].value.ui_position, { x: 100, y: 100 });
     assert.match(changes[0].transactionId, /^zwdtx_/);
     assert.equal(designer.getAnnotationMode(), true);
     assert.deepEqual(plain(designer.getViewport()), { x: 10, y: 20, zoom: 2 });
@@ -765,9 +769,9 @@ const tests = {
     designer.destroy();
   },
 
-  // Characterizes annotation mode so primary clicks keep the existing
-  // node/note selection behavior and edge selection state before blank-click
-  // annotation placement runs.
+  // Characterizes annotation mode as note-edit only: primary clicks select
+  // notes but never nodes or edges, and a blank-canvas click still never adds
+  // an annotation.
   "annotation-primary-selection"() {
     const document = workflowDocument();
     document.notes = [{
@@ -804,16 +808,16 @@ const tests = {
       y: 160
     });
     assert.deepEqual(plain(designer.getSelection()), {
-      nodes: [{ node_id: "loop-1" }],
+      nodes: [],
       edges: [],
       annotation_ids: []
-    });
+    }, "a node click must not select while annotation mode is ON");
 
     primaryClick(shell.querySelector(
       '[data-edge-key="flow:flow-1:edge:loop-1:node-2"]'
     ), 42, { x: 420, y: 120 });
     assert.deepEqual(plain(designer.getSelection()), {
-      nodes: [{ node_id: "loop-1" }],
+      nodes: [],
       edges: [],
       annotation_ids: []
     });
@@ -830,7 +834,7 @@ const tests = {
     assert.equal(changes.length, 0, "target clicks must not add annotations");
 
     primaryClick(viewport, 44, { x: 600, y: 360 });
-    assert.equal(changes.length, 1, "blank click must still add an annotation");
+    assert.equal(changes.length, 0, "blank click must never add an annotation");
     assert.equal(designer.getAnnotationMode(), true);
     designer.destroy();
   },

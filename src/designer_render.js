@@ -380,6 +380,13 @@
         '[data-zwd-command="annotation.mode-toggle"]'
       );
       toggle?.setAttribute("aria-pressed", enabled ? "true" : "false");
+      const noteControls = shell.noteLayer?.querySelectorAll?.(
+        "[data-note-color], [data-note-resize]"
+      ) || [];
+      noteControls.forEach((control) => {
+        control.disabled = !enabled;
+        control.setAttribute("aria-disabled", enabled ? "false" : "true");
+      });
     }
 
     function nodeCenter(nodeKey, port = "out") {

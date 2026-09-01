@@ -75,7 +75,7 @@ with sync_playwright() as playwright:
 
     assert page.locator(".zwd-node").count() == 9
     assert page.locator(".zwd-loop-frame").count() == 0
-    assert page.locator(".zwd-toolbar .zwd-tool").count() == 7
+    assert page.locator(".zwd-toolbar .zwd-tool").count() == 6
     annotation_mode_toggle = page.locator(
         '[data-zwd-command="annotation.mode-toggle"]'
     )
@@ -135,8 +135,8 @@ with sync_playwright() as playwright:
     end_visual_style = page.locator('.zwd-node--end .zwd-node__visual').evaluate(
         "element => ({ width: getComputedStyle(element).width, height: getComputedStyle(element).height, radius: getComputedStyle(element).borderRadius })"
     )
-    assert start_visual_style == {"width": "88px", "height": "88px", "radius": "44px 0px 0px 44px"}
-    assert end_visual_style == {"width": "88px", "height": "88px", "radius": "0px 44px 44px 0px"}
+    assert start_visual_style == {"width": "88px", "height": "88px", "radius": "999px 0px 0px 999px"}
+    assert end_visual_style == {"width": "88px", "height": "88px", "radius": "0px 999px 999px 0px"}
 
     start_visual_box = page.locator('.zwd-node--start .zwd-node__visual').bounding_box()
     start_port_box = page.locator('.zwd-node--start [data-zwd-port-role="out"]').bounding_box()
@@ -288,10 +288,28 @@ with sync_playwright() as playwright:
     assert added_node["ui_position"]["x"] % 22 == 0
     assert added_node["ui_position"]["y"] % 22 == 0
 
+    # Notes are created from the annotation-mode right-click menu only, and
+    # that menu offers nothing else.
     notes = page.locator(".zwd-note")
     assert notes.count() == 1
-    page.locator('[data-zwd-command="annotation.add"]').click()
+    page.locator('[data-zwd-command="annotation.mode-toggle"]').click()
+    assert page.locator('.zwd[data-annotation-mode="active"]').count() == 1
+    page.mouse.click(*empty_canvas_point, button="right")
+    assert page.locator("[data-context-command]").count() == 1
+    page.locator('[data-context-command="annotation.add"]').click()
     assert notes.count() == 2
+
+    # A note right-click offers the configured colour palette only.
+    page.locator(".zwd-note").first.click(button="right")
+    palette = page.locator('[data-context-command="annotation.color"]')
+    assert page.locator("[data-context-command]").count() == palette.count()
+    assert palette.evaluate_all(
+        "items => items.map(item => item.dataset.contextValue)"
+    ) == ["#fff2a8", "#dff7e8", "#e7edff"]
+    page.mouse.click(*empty_canvas_point)
+    page.locator('[data-zwd-command="annotation.mode-toggle"]').click()
+    assert page.locator('.zwd[data-annotation-mode="inactive"]').count() == 1
+
     page.locator('[data-zwd-command="history.undo"]').click()
     assert notes.count() == 1
     page.locator('[data-zwd-command="history.redo"]').click()

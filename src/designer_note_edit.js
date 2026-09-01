@@ -14,6 +14,10 @@
     };
   }
 
+  function noteColorOperations(document, note, value) {
+    return [operationFor(document, note.colorPath, String(value || ""))];
+  }
+
   function createNoteEditor(renderer, controller) {
     let active = null;
 
@@ -37,7 +41,7 @@
     }
 
     function begin(noteId, body) {
-      if (controller.isReadonly()) return;
+      if (controller.isReadonly() || !controller.getAnnotationMode()) return;
       close();
       const note = renderer.getModel()?.notes
         .find((item) => item.noteId === String(noteId || ""));
@@ -70,17 +74,19 @@
     }
 
     function setColor(noteId, value) {
-      if (controller.isReadonly()) return;
+      if (controller.isReadonly() || !controller.getAnnotationMode()) return;
       const note = renderer.getModel()?.notes
         .find((item) => item.noteId === String(noteId || ""));
       if (!note) return;
-      controller.commit([
-        operationFor(controller.getDocument(), note.colorPath, String(value || ""))
-      ], "annotation.color");
+      controller.commit(
+        noteColorOperations(controller.getDocument(), note, value),
+        "annotation.color"
+      );
     }
 
     return Object.freeze({ begin, close, setColor });
   }
 
+  modules.workflowNoteColorOperations = noteColorOperations;
   modules.createWorkflowNoteEditor = createNoteEditor;
 })(window);

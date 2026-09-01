@@ -48,6 +48,31 @@ assert.deepEqual(
   { x: 22, y: 0 }
 );
 
+assert.deepEqual(
+  plain(modules.normalizeWorkflowGrid({
+    enabled: true,
+    size: 32,
+    origin: { x: 44, y: 40 }
+  })),
+  { enabled: true, size: 32, origin: { x: 44, y: 40 } }
+);
+assert.deepEqual(
+  plain(modules.snapWorkflowPosition(
+    { x: 70, y: 78 },
+    { enabled: true, size: 32, origin: { x: 44, y: 40 } }
+  )),
+  { x: 76, y: 72 },
+  "position snapping must use the configured world-grid origin"
+);
+assert.deepEqual(
+  plain(modules.snapWorkflowDelta(
+    { x: 31, y: 9 },
+    { enabled: true, size: 32, origin: { x: 44, y: 40 } }
+  )),
+  { x: 32, y: 0 },
+  "delta snapping must not add the position origin"
+);
+
 
 const model = {
   nodes: [
